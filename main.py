@@ -153,16 +153,16 @@ if total_amostras > 0:
         👉 99% das amostras têm dose ≤ {dose_99th:.2f} µSv/h
         """)
     
-    with col2:
-        st.write("""
-        **🎯 Comparação com exemplos do dia a dia:**
+    # with col2:
+    #     st.write("""
+    #     **🎯 Comparação com exemplos do dia a dia:**
         
-        | Situação | Equivalente na Análise |
-        |----------|------------------------|
-        | **95% chegam no trabalho até 8h** | P95 = 8h |
-        | **90% dos produtos pesam até 1kg** | P90 = 1kg |
-        | **95% têm dose ≤ 4.5 µSv/h** | P95 = 4.5 µSv/h |
-        """)
+    #     | Situação | Equivalente na Análise |
+    #     |----------|------------------------|
+    #     | **95% chegam no trabalho até 8h** | P95 = 8h |
+    #     | **90% dos produtos pesam até 1kg** | P90 = 1kg |
+    #     | **95% têm dose ≤ 4.5 µSv/h** | P95 = 4.5 µSv/h |
+    #     """)
     
     # GRÁFICO SIMPLES DE DISTRIBUIÇÃO
     st.subheader("📊 Visualização da Distribuição das Doses")
