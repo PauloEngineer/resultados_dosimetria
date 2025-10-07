@@ -9,8 +9,12 @@ from scipy import stats
 st.set_page_config(page_title="Validação Limite 5µSv/h - GLP", layout="wide")
 
 # Título da aplicação
-st.title("📊 Validação do Limite Operacional de 5 µSv/h")
-st.subheader("Análise com base em concentrações até 8 Bq/g de Ra-226 e Ra-228")
+titulo = "📊 Validação do Limite Operacional de 5 µSv/h"
+sub_titulo = "Análise com base em concentrações até 8 Bq/g de Ra-226 e Ra-228"
+
+# Usa st.markdown para renderizar a tag <h1> com alinhamento centralizado
+st.markdown(f"<h1 style='text-align: center;'>{titulo}</h1>", unsafe_allow_html=True)
+st.markdown(f"<h3 style='text-align: center;'>{sub_titulo}</h3>", unsafe_allow_html=True)
 
 # Processamento dos dados
 @st.cache_data
@@ -41,6 +45,36 @@ def load_data():
 
 df_original, df = load_data()
 
+# CALCULAR QUANTIDADES DE AMOSTRAS POR RADIONUCLÍDEO
+def calcular_estatisticas_radionuclideos(df):
+    stats_dict = {}
+    
+    # Para Ra-226
+    ra226_valid = df['Resultado_ra226'].notna()
+    stats_dict['Ra226'] = {
+        'total': ra226_valid.sum(),
+        'ate_1bq': (df[ra226_valid]['Resultado_ra226'] <= 1.0).sum(),
+        '1_3bq': ((df[ra226_valid]['Resultado_ra226'] > 1.0) & (df[ra226_valid]['Resultado_ra226'] <= 3.0)).sum(),
+        '3_5bq': ((df[ra226_valid]['Resultado_ra226'] > 3.0) & (df[ra226_valid]['Resultado_ra226'] <= 5.0)).sum(),
+        '5_8bq': ((df[ra226_valid]['Resultado_ra226'] > 5.0) & (df[ra226_valid]['Resultado_ra226'] <= 8.0)).sum(),
+        'media': df[ra226_valid]['Resultado_ra226'].mean(),
+        'maxima': df[ra226_valid]['Resultado_ra226'].max()
+    }
+    
+    # Para Ra-228
+    ra228_valid = df['Resultado_ra228'].notna()
+    stats_dict['Ra228'] = {
+        'total': ra228_valid.sum(),
+        'ate_1bq': (df[ra228_valid]['Resultado_ra228'] <= 1.0).sum(),
+        '1_3bq': ((df[ra228_valid]['Resultado_ra228'] > 1.0) & (df[ra228_valid]['Resultado_ra228'] <= 3.0)).sum(),
+        '3_5bq': ((df[ra228_valid]['Resultado_ra228'] > 3.0) & (df[ra228_valid]['Resultado_ra228'] <= 5.0)).sum(),
+        '5_8bq': ((df[ra228_valid]['Resultado_ra228'] > 5.0) & (df[ra228_valid]['Resultado_ra228'] <= 8.0)).sum(),
+        'media': df[ra228_valid]['Resultado_ra228'].mean(),
+        'maxima': df[ra228_valid]['Resultado_ra228'].max()
+    }
+    
+    return stats_dict
+
 # Sidebar com informações
 st.sidebar.header("🎯 Objetivo da Análise")
 st.sidebar.info("""
@@ -57,9 +91,13 @@ else:
     df_analysis = df
     st.sidebar.success("✅ Analisando apenas dados ≤ 8 Bq/g")
 
+# Calcular estatísticas para o dataframe em análise
+stats_radionuclideos = calcular_estatisticas_radionuclideos(df_analysis)
+
 # Layout principal - RESUMO EXECUTIVO SIMPLES
 st.header("📋 VISÃO GERAL DOS RESULTADOS")
 
+# PRIMEIRA LINHA: Métricas principais
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
@@ -80,8 +118,41 @@ with col4:
     max_dose = df_analysis['Taxa de Dose Máxima (µSv/h)'].max() if total_amostras > 0 else 0
     st.metric("Maior Dose Encontrada", f"{max_dose:.2f} µSv/h")
 
+# SEGUNDA LINHA: Estatísticas dos Radionuclídeos
+st.subheader("📊 Estatísticas por Radionuclídeo")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.write("**Ra-226**")
+    ra226 = stats_radionuclideos['Ra226']
+    st.write(f"""
+    - **Total de amostras:** {ra226['total']}
+    - **Distribuição por faixa:**
+      - ≤ 1.0 Bq/g: {ra226['ate_1bq']} amostras
+      - 1.1 - 3.0 Bq/g: {ra226['1_3bq']} amostras  
+      - 3.1 - 5.0 Bq/g: {ra226['3_5bq']} amostras
+      - 5.1 - 8.0 Bq/g: {ra226['5_8bq']} amostras
+    - **Média:** {ra226['media']:.2f} Bq/g
+    - **Máxima:** {ra226['maxima']:.2f} Bq/g
+    """)
+
+with col2:
+    st.write("**Ra-228**")
+    ra228 = stats_radionuclideos['Ra228']
+    st.write(f"""
+    - **Total de amostras:** {ra228['total']}
+    - **Distribuição por faixa:**
+      - ≤ 1.0 Bq/g: {ra228['ate_1bq']} amostras
+      - 1.1 - 3.0 Bq/g: {ra228['1_3bq']} amostras  
+      - 3.1 - 5.0 Bq/g: {ra228['3_5bq']} amostras
+      - 5.1 - 8.0 Bq/g: {ra228['5_8bq']} amostras
+    - **Média:** {ra228['media']:.2f} Bq/g
+    - **Máxima:** {ra228['maxima']:.2f} Bq/g
+    """)
+
 # ANÁLISE SIMPLIFICADA - O QUE OS NÚMEROS SIGNIFICAM
-st.header("O QUE OS NÚMEROS SIGNIFICAM PARA VOCÊ?")
+st.header("O QUE OS NÚMEROS SIGNIFICAM?")
 
 if total_amostras > 0:
     # Cálculos importantes
@@ -99,7 +170,7 @@ if total_amostras > 0:
         baixo_risco = len(df_analysis[df_analysis['Taxa de Dose Máxima (µSv/h)'] <= 3.0])
         perc_baixo = (baixo_risco / total_amostras * 100)
         st.success(f"""
-        **MENO OU IGUAL A 3.0**
+        **MENOR OU IGUAL A 3.0**
         
         **{baixo_risco} amostras** ({perc_baixo:.1f}%)
         
@@ -130,12 +201,7 @@ if total_amostras > 0:
         """)
     
     # EXPLICAÇÃO DOS PERCENTIS COM LINGUAGEM SIMPLES
-    st.subheader("💡 Entendendo os Percentis")
-    
-    st.write("""
-    **Pense nos percentis como forma de responder:**
-    - **"Quantas amostras ficam abaixo de cada valor de dose?"**
-    """)
+    st.subheader("Entendendo os Percentis")
     
     col1, col2 = st.columns(2)
     
@@ -152,17 +218,6 @@ if total_amostras > 0:
         **P99 = {dose_99th:.2f} µSv/h**  
         👉 99% das amostras têm dose ≤ {dose_99th:.2f} µSv/h
         """)
-    
-    # with col2:
-    #     st.write("""
-    #     **🎯 Comparação com exemplos do dia a dia:**
-        
-    #     | Situação | Equivalente na Análise |
-    #     |----------|------------------------|
-    #     | **95% chegam no trabalho até 8h** | P95 = 8h |
-    #     | **90% dos produtos pesam até 1kg** | P90 = 1kg |
-    #     | **95% têm dose ≤ 4.5 µSv/h** | P95 = 4.5 µSv/h |
-    #     """)
     
     # GRÁFICO SIMPLES DE DISTRIBUIÇÃO
     st.subheader("📊 Visualização da Distribuição das Doses")
@@ -193,7 +248,7 @@ if total_amostras > 0:
     st.pyplot(fig)
 
     # RECOMENDAÇÃO PRÁTICA E CLARA
-    st.header("🎯 RECOMENDAÇÃO PRÁTICA")
+    st.header("RECOMENDAÇÃO PRÁTICA")
     
     if percentual_ate_5usv >= 95 and dose_95th <= 5.0:
         st.success(f"""
@@ -238,10 +293,13 @@ if total_amostras > 0:
         """)
 
     # RELAÇÃO ENTRE CONCENTRAÇÃO E DOSE (SIMPLES)
-    st.header("🔍 Relação: Concentração vs Dose")
+    st.header("Relação: Concentração vs Dose")
     
-    st.write("""
-    **Vamos ver se amostras com maior concentração têm maior dose:**
+    st.write(f"""
+    **Contexto das amostras analisadas:**
+    - **Ra-226:** {stats_radionuclideos['Ra226']['total']} amostras válidas
+    - **Ra-228:** {stats_radionuclideos['Ra228']['total']} amostras válidas  
+    - **Análise:** Vamos ver se amostras com maior concentração têm maior dose
     """)
     
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
@@ -292,4 +350,5 @@ st.markdown("""
 - **Percentis** mostram "até que valor" vai a maioria das amostras
 - **P95** responde: "95% das amostras têm dose menor que quanto?"
 - **Limite adequado** = P95 bem abaixo de 5.0 µSv/h + alta % dentro do limite
+- **Amostras por radionuclídeo** mostram a distribuição real das concentrações
 """)
