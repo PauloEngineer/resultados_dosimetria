@@ -6,11 +6,11 @@ import seaborn as sns
 from scipy import stats
 
 # Configuração da página
-st.set_page_config(page_title="Análise Radiométrica - GLP", layout="wide")
+st.set_page_config(page_title="Validação Limite 5µSv/h - GLP", layout="wide")
 
 # Título da aplicação
-st.title("📊 Análise Estatística de Resultados Radiométricos")
-st.subheader("Relação entre Taxa de Dose e Concentrações de Ra-226 e Ra-228")
+st.title("📊 Validação do Limite Operacional de 5 µSv/h")
+st.subheader("Análise com base em concentrações até 8 Bq/g de Ra-226 e Ra-228")
 
 # Processamento dos dados
 @st.cache_data
@@ -19,263 +19,277 @@ def load_data():
     df = pd.read_excel("Resultados de análises radiométricas - GLP.xlsx", sheet_name="Macaé")
     
     # Limpeza e preparação dos dados
-    # Renomear colunas para facilitar o trabalho
     df.columns = [str(col).strip() for col in df.columns]
     
-    # Converter colunas numéricas - usando os nomes corretos da sua planilha
-    numeric_columns = ['Taxa de Dose Máxima (µSv/h)', 'Resultado_ra226', 
-                      'Incerteza', 'Resultado_ra228', 
-                      'Incerteza.1', 'Massa Líquida (kg)']
+    # Converter colunas numéricas
+    numeric_columns = ['Taxa de Dose Máxima (µSv/h)', 'Resultado_ra226', 'Resultado_ra228']
     
     for col in numeric_columns:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
     
-    # Filtrar dados válidos para análise
-    df = df.dropna(subset=['Taxa de Dose Máxima (µSv/h)', 'Resultado_ra226', 
-                          'Resultado_ra228'])
+    # FILTRAR APENAS DADOS ATÉ 8 Bq/g (conforme solicitação do gerente)
+    df_filtrado = df[
+        (df['Resultado_ra226'] <= 8.0) & 
+        (df['Resultado_ra228'] <= 8.0) &
+        (df['Resultado_ra226'].notna()) &
+        (df['Resultado_ra228'].notna()) &
+        (df['Taxa de Dose Máxima (µSv/h)'].notna())
+    ].copy()
     
-    return df
+    return df, df_filtrado
 
-df = load_data()
+df_original, df = load_data()
 
-# Sidebar com filtros
-st.sidebar.header("🔧 Filtros de Análise")
+# Sidebar com informações
+st.sidebar.header("🎯 Objetivo da Análise")
+st.sidebar.info("""
+Validar se o limite de 5 µSv/h é adequado, analisando dados com concentrações até 8 Bq/g.
+""")
 
-# Filtro por concentração máxima
-max_concentration = st.sidebar.slider(
-    "Concentração máxima para análise (Bq/g)",
-    min_value=0.1, max_value=20.0, value=8.0, step=0.1
-)
+st.sidebar.header("🔧 Configurações")
+show_all_data = st.sidebar.checkbox("Mostrar análise com todos os dados", value=False)
 
-# Filtro por taxa de dose máxima
-max_dose_rate = st.sidebar.slider(
-    "Taxa de dose máxima para análise (µSv/h)",
-    min_value=0.1, max_value=10.0, value=5.0, step=0.1
-)
+if show_all_data:
+    df_analysis = df_original
+    st.sidebar.warning("⚠️ Mostrando TODOS os dados (incluindo acima de 8 Bq/g)")
+else:
+    df_analysis = df
+    st.sidebar.success("✅ Analisando apenas dados ≤ 8 Bq/g")
 
-# Aplicar filtros
-filtered_df = df[
-    (df['Resultado_ra226'] <= max_concentration) & 
-    (df['Resultado_ra228'] <= max_concentration) &
-    (df['Taxa de Dose Máxima (µSv/h)'] <= max_dose_rate)
-]
+# Layout principal - RESUMO EXECUTIVO SIMPLES
+st.header("📋 VISÃO GERAL DOS RESULTADOS")
 
-# Layout principal
-col1, col2 = st.columns(2)
+col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.metric("Total de Amostras", len(df))
-    st.metric("Amostras Filtradas", len(filtered_df))
-    if len(df) > 0:
-        st.metric("Percentual Utilizado", f"{(len(filtered_df)/len(df)*100):.1f}%")
-    else:
-        st.metric("Percentual Utilizado", "0%")
+    total_amostras = len(df_analysis)
+    st.metric("Total de Amostras Analisadas", total_amostras)
 
 with col2:
-    if len(filtered_df) > 0:
-        st.metric("Ra-226 Máximo (Bq/g)", f"{filtered_df['Resultado_ra226'].max():.2f}")
-        st.metric("Ra-228 Máximo (Bq/g)", f"{filtered_df['Resultado_ra228'].max():.2f}")
-        st.metric("Dose Máxima (µSv/h)", f"{filtered_df['Taxa de Dose Máxima (µSv/h)'].max():.2f}")
-    else:
-        st.metric("Ra-226 Máximo (Bq/g)", "N/A")
-        st.metric("Ra-228 Máximo (Bq/g)", "N/A")
-        st.metric("Dose Máxima (µSv/h)", "N/A")
+    amostras_ate_5usv = len(df_analysis[df_analysis['Taxa de Dose Máxima (µSv/h)'] <= 5.0])
+    percentual_ate_5usv = (amostras_ate_5usv / total_amostras * 100) if total_amostras > 0 else 0
+    st.metric("Dentro do Limite", f"{amostras_ate_5usv} ({percentual_ate_5usv:.1f}%)")
 
-# Análise estatística
-st.header("📈 Análise Estatística Detalhada")
+with col3:
+    amostras_acima_5usv = len(df_analysis[df_analysis['Taxa de Dose Máxima (µSv/h)'] > 5.0])
+    percentual_acima_5usv = (amostras_acima_5usv / total_amostras * 100) if total_amostras > 0 else 0
+    st.metric("Acima do Limite", f"{amostras_acima_5usv} ({percentual_acima_5usv:.1f}%)")
 
-if len(filtered_df) > 0:
-    # Estatísticas descritivas
+with col4:
+    max_dose = df_analysis['Taxa de Dose Máxima (µSv/h)'].max() if total_amostras > 0 else 0
+    st.metric("Maior Dose Encontrada", f"{max_dose:.2f} µSv/h")
+
+# ANÁLISE SIMPLIFICADA - O QUE OS NÚMEROS SIGNIFICAM
+st.header("O QUE OS NÚMEROS SIGNIFICAM PARA VOCÊ?")
+
+if total_amostras > 0:
+    # Cálculos importantes
+    dose_90th = np.percentile(df_analysis['Taxa de Dose Máxima (µSv/h)'], 90)
+    dose_95th = np.percentile(df_analysis['Taxa de Dose Máxima (µSv/h)'], 95)
+    dose_99th = np.percentile(df_analysis['Taxa de Dose Máxima (µSv/h)'], 99)
+    
+    # VISUALIZAÇÃO SIMPLES COM SEMÁFORO
+    st.subheader("📊 Situação das Amostras")
+    
+    # Criar colunas para o semáforo
     col1, col2, col3 = st.columns(3)
-
+    
     with col1:
-        st.subheader("Ra-226 (Bq/g)")
-        ra226_stats = filtered_df['Resultado_ra226'].describe()
-        st.write(f"Média: {ra226_stats['mean']:.3f}")
-        st.write(f"Mediana: {ra226_stats['50%']:.3f}")
-        st.write(f"Desvio Padrão: {ra226_stats['std']:.3f}")
-        st.write(f"Mínimo: {ra226_stats['min']:.3f}")
-        st.write(f"Máximo: {ra226_stats['max']:.3f}")
-
+        baixo_risco = len(df_analysis[df_analysis['Taxa de Dose Máxima (µSv/h)'] <= 3.0])
+        perc_baixo = (baixo_risco / total_amostras * 100)
+        st.success(f"""
+        **MENO OU IGUAL A 3.0**
+        
+        **{baixo_risco} amostras** ({perc_baixo:.1f}%)
+        
+        *Dose ≤ 3.0 µSv/h*
+        """)
+    
     with col2:
-        st.subheader("Ra-228 (Bq/g)")
-        ra228_stats = filtered_df['Resultado_ra228'].describe()
-        st.write(f"Média: {ra228_stats['mean']:.3f}")
-        st.write(f"Mediana: {ra228_stats['50%']:.3f}")
-        st.write(f"Desvio Padrão: {ra228_stats['std']:.3f}")
-        st.write(f"Mínimo: {ra228_stats['min']:.3f}")
-        st.write(f"Máximo: {ra228_stats['max']:.3f}")
-
+        medio_risco = len(df_analysis[(df_analysis['Taxa de Dose Máxima (µSv/h)'] > 3.0) & 
+                                    (df_analysis['Taxa de Dose Máxima (µSv/h)'] <= 5.0)])
+        perc_medio = (medio_risco / total_amostras * 100)
+        st.warning(f"""
+        **MAIOR QUE 3.0 E MENOR OU IGUAL 5.0**
+        
+        **{medio_risco} amostras** ({perc_medio:.1f}%)
+        
+        *Dose entre 3.1-5.0 µSv/h*
+        """)
+    
     with col3:
-        st.subheader("Taxa de Dose (µSv/h)")
-        dose_stats = filtered_df['Taxa de Dose Máxima (µSv/h)'].describe()
-        st.write(f"Média: {dose_stats['mean']:.3f}")
-        st.write(f"Mediana: {dose_stats['50%']:.3f}")
-        st.write(f"Desvio Padrão: {dose_stats['std']:.3f}")
-        st.write(f"Mínimo: {dose_stats['min']:.3f}")
-        st.write(f"Máximo: {dose_stats['max']:.3f}")
-
-    # Visualizações
-    st.header("📊 Visualizações")
-
-    # Gráfico 1: Dispersão Ra-226 vs Taxa de Dose
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-
-    # Scatter plot Ra-226
-    scatter1 = ax1.scatter(filtered_df['Resultado_ra226'], 
-                          filtered_df['Taxa de Dose Máxima (µSv/h)'],
-                          alpha=0.6, c='blue', s=50)
-    ax1.set_xlabel('Ra-226 (Bq/g)')
-    ax1.set_ylabel('Taxa de Dose (µSv/h)')
-    ax1.set_title('Ra-226 vs Taxa de Dose')
-    ax1.grid(True, alpha=0.3)
-
-    # Scatter plot Ra-228
-    scatter2 = ax2.scatter(filtered_df['Resultado_ra228'], 
-                          filtered_df['Taxa de Dose Máxima (µSv/h)'],
-                          alpha=0.6, c='red', s=50)
-    ax2.set_xlabel('Ra-228 (Bq/g)')
-    ax2.set_ylabel('Taxa de Dose (µSv/h)')
-    ax2.set_title('Ra-228 vs Taxa de Dose')
-    ax2.grid(True, alpha=0.3)
-
-    st.pyplot(fig)
-
-    # Gráfico 2: Histogramas
-    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
-
-    # Histograma Ra-226
-    ax1.hist(filtered_df['Resultado_ra226'], bins=20, alpha=0.7, color='blue', edgecolor='black')
-    ax1.set_xlabel('Ra-226 (Bq/g)')
-    ax1.set_ylabel('Frequência')
-    ax1.set_title('Distribuição de Ra-226')
-    ax1.grid(True, alpha=0.3)
-
-    # Histograma Ra-228
-    ax2.hist(filtered_df['Resultado_ra228'], bins=20, alpha=0.7, color='red', edgecolor='black')
-    ax2.set_xlabel('Ra-228 (Bq/g)')
-    ax2.set_ylabel('Frequência')
-    ax2.set_title('Distribuição de Ra-228')
-    ax2.grid(True, alpha=0.3)
-
-    # Histograma Taxa de Dose
-    ax3.hist(filtered_df['Taxa de Dose Máxima (µSv/h)'], bins=20, alpha=0.7, color='green', edgecolor='black')
-    ax3.set_xlabel('Taxa de Dose (µSv/h)')
-    ax3.set_ylabel('Frequência')
-    ax3.set_title('Distribuição da Taxa de Dose')
-    ax3.grid(True, alpha=0.3)
-
-    st.pyplot(fig)
-
-    # Análise de correlação
-    st.header("🔗 Análise de Correlação")
-
-    # Matriz de correlação
-    corr_matrix = filtered_df[['Resultado_ra226', 'Resultado_ra228', 
-                              'Taxa de Dose Máxima (µSv/h)']].corr()
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', center=0, ax=ax,
-                square=True, fmt='.3f', cbar_kws={"shrink": .8})
-    ax.set_title('Matriz de Correlação')
-    st.pyplot(fig)
-
-    # Análise de regressão
-    st.subheader("Análise de Regressão")
-
+        alto_risco = len(df_analysis[df_analysis['Taxa de Dose Máxima (µSv/h)'] > 5.0])
+        perc_alto = (alto_risco / total_amostras * 100)
+        st.error(f"""
+        **MAIOR QUE 5.0**
+        
+        **{alto_risco} amostras** ({perc_alto:.1f}%)
+        
+        *Dose > 5.0 µSv/h*
+        """)
+    
+    # EXPLICAÇÃO DOS PERCENTIS COM LINGUAGEM SIMPLES
+    st.subheader("💡 Entendendo os Percentis")
+    
+    st.write("""
+    **Pense nos percentis como forma de responder:**
+    - **"Quantas amostras ficam abaixo de cada valor de dose?"**
+    """)
+    
     col1, col2 = st.columns(2)
-
+    
     with col1:
-        # Regressão Ra-226 vs Dose
-        slope_226, intercept_226, r_value_226, p_value_226, std_err_226 = stats.linregress(
-            filtered_df['Resultado_ra226'], 
-            filtered_df['Taxa de Dose Máxima (µSv/h)']
-        )
+        st.info(f"""
+        **📈 O que os percentis mostram:**
         
-        st.write("**Ra-226 vs Taxa de Dose:**")
-        st.write(f"Coeficiente angular: {slope_226:.4f}")
-        st.write(f"Coeficiente linear: {intercept_226:.4f}")
-        st.write(f"R²: {r_value_226**2:.4f}")
-        st.write(f"Valor-p: {p_value_226:.4f}")
-
-    with col2:
-        # Regressão Ra-228 vs Dose
-        slope_228, intercept_228, r_value_228, p_value_228, std_err_228 = stats.linregress(
-            filtered_df['Resultado_ra228'], 
-            filtered_df['Taxa de Dose Máxima (µSv/h)']
-        )
+        **P90 = {dose_90th:.2f} µSv/h**  
+        👉 90% das amostras têm dose ≤ {dose_90th:.2f} µSv/h
         
-        st.write("**Ra-228 vs Taxa de Dose:**")
-        st.write(f"Coeficiente angular: {slope_228:.4f}")
-        st.write(f"Coeficiente linear: {intercept_228:.4f}")
-        st.write(f"R²: {r_value_228**2:.4f}")
-        st.write(f"Valor-p: {p_value_228:.4f}")
-
-    # Análise de limites
-    st.header("🎯 Análise de Limites Operacionais")
-
-    # Calcular percentis
-    dose_90th = np.percentile(filtered_df['Taxa de Dose Máxima (µSv/h)'], 90)
-    dose_95th = np.percentile(filtered_df['Taxa de Dose Máxima (µSv/h)'], 95)
-    dose_99th = np.percentile(filtered_df['Taxa de Dose Máxima (µSv/h)'], 99)
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.metric("Percentil 90%", f"{dose_90th:.2f} µSv/h")
-
+        **P95 = {dose_95th:.2f} µSv/h**  
+        👉 95% das amostras têm dose ≤ {dose_95th:.2f} µSv/h
+        
+        **P99 = {dose_99th:.2f} µSv/h**  
+        👉 99% das amostras têm dose ≤ {dose_99th:.2f} µSv/h
+        """)
+    
     with col2:
-        st.metric("Percentil 95%", f"{dose_95th:.2f} µSv/h")
+        st.write("""
+        **🎯 Comparação com exemplos do dia a dia:**
+        
+        | Situação | Equivalente na Análise |
+        |----------|------------------------|
+        | **95% chegam no trabalho até 8h** | P95 = 8h |
+        | **90% dos produtos pesam até 1kg** | P90 = 1kg |
+        | **95% têm dose ≤ 4.5 µSv/h** | P95 = 4.5 µSv/h |
+        """)
+    
+    # GRÁFICO SIMPLES DE DISTRIBUIÇÃO
+    st.subheader("📊 Visualização da Distribuição das Doses")
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # Criar áreas coloridas
+    ax.axvspan(0, 3.0, alpha=0.3, color='green', label='Baixo Risco (≤ 3.0 µSv/h)')
+    ax.axvspan(3.0, 5.0, alpha=0.3, color='yellow', label='Atenção (3.1-5.0 µSv/h)')
+    ax.axvspan(5.0, max(10, max_dose), alpha=0.3, color='red', label='Alto Risco (> 5.0 µSv/h)')
+    
+    # Histograma
+    n, bins, patches = ax.hist(df_analysis['Taxa de Dose Máxima (µSv/h)'], 
+                              bins=15, alpha=0.7, color='blue', edgecolor='black')
+    
+    # Linhas dos percentis
+    ax.axvline(x=dose_90th, color='orange', linestyle='--', linewidth=2, 
+               label=f'90% das amostras ≤ {dose_90th:.1f} µSv/h')
+    ax.axvline(x=dose_95th, color='red', linestyle='--', linewidth=2, 
+               label=f'95% das amostras ≤ {dose_95th:.1f} µSv/h')
+    
+    ax.set_xlabel('Taxa de Dose (µSv/h)')
+    ax.set_ylabel('Número de Amostras')
+    ax.set_title('Distribuição das Taxas de Dose - Visão Simplificada')
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    
+    st.pyplot(fig)
 
-    with col3:
-        st.metric("Percentil 99%", f"{dose_99th:.2f} µSv/h")
-
-    # Recomendações
-    st.header("💡 Recomendações e Conclusões")
-
-    # Análise da viabilidade do limite de 5 µSv/h
-    samples_below_5 = len(filtered_df[filtered_df['Taxa de Dose Máxima (µSv/h)'] <= 5.0])
-    percentage_below_5 = (samples_below_5 / len(filtered_df)) * 100
-
-    st.write(f"**Amostras com taxa de dose ≤ 5 µSv/h:** {samples_below_5} ({percentage_below_5:.1f}%)")
-
-    if percentage_below_5 >= 95:
-        st.success("✅ O limite de 5 µSv/h é viável para a maioria das amostras analisadas.")
-    elif percentage_below_5 >= 80:
-        st.warning("⚠️ O limite de 5 µSv/h pode ser aplicado, mas requer monitoramento cuidadoso.")
+    # RECOMENDAÇÃO PRÁTICA E CLARA
+    st.header("🎯 RECOMENDAÇÃO PRÁTICA")
+    
+    if percentual_ate_5usv >= 95 and dose_95th <= 5.0:
+        st.success(f"""
+        **✅ MANTENHA O LIMITE DE 5 µSv/h**
+        
+        **Por que essa recomendação?**
+        
+        ✅ **{percentual_ate_5usv:.1f}% das amostras** estão DENTRO do limite  
+        ✅ **95% das amostras** têm dose ≤ **{dose_95th:.2f} µSv/h**  
+        ✅ **Margem de segurança** adequada  
+        ✅ Limite está **funcionando bem**
+        
+        **Próximos passos:** Continue monitorando normalmente.
+        """)
+        
+    elif percentual_ate_5usv >= 90:
+        st.warning(f"""
+        **⚠️ AVALIE COM CUIDADO O LIMITE DE 5 µSv/h**
+        
+        **Por que essa recomendação?**
+        
+        ⚠️ **{percentual_ate_5usv:.1f}% das amostras** estão dentro do limite  
+        ⚠️ **95% das amostras** têm dose ≤ **{dose_95th:.2f} µSv/h**  
+        ⚠️ **Pouca margem** de segurança  
+        ⚠️ **{amostras_acima_5usv} amostras** ({percentual_acima_5usv:.1f}%) acima do limite
+        
+        **Próximos passos:** Aumente a frequência de monitoramento.
+        """)
+        
     else:
-        st.error("❌ O limite de 5 µSv/h pode não ser adequado para estas condições operacionais.")
+        st.error(f"""
+        **❌ REAVALIE O LIMITE DE 5 µSv/h**
+        
+        **Por que essa recomendação?**
+        
+        ❌ Apenas **{percentual_ate_5usv:.1f}%** dentro do limite  
+        ❌ **{amostras_acima_5usv} amostras** ({percentual_acima_5usv:.1f}%) acima do limite  
+        ❌ **95% das amostras** têm dose ≤ **{dose_95th:.2f} µSv/h**  
+        ❌ **Risco frequente** de ultrapassar o limite
+        
+        **Próximos passos:** Considere ajustar o limite ou melhorar controles.
+        """)
+
+    # RELAÇÃO ENTRE CONCENTRAÇÃO E DOSE (SIMPLES)
+    st.header("🔍 Relação: Concentração vs Dose")
+    
+    st.write("""
+    **Vamos ver se amostras com maior concentração têm maior dose:**
+    """)
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+    
+    # Ra-226 vs Dose
+    scatter1 = ax1.scatter(df_analysis['Resultado_ra226'], 
+                          df_analysis['Taxa de Dose Máxima (µSv/h)'],
+                          alpha=0.6, c='blue', s=50)
+    ax1.axhline(y=5.0, color='red', linestyle='--', linewidth=2, label='Limite 5 µSv/h')
+    ax1.set_xlabel('Concentração de Ra-226 (Bq/g)')
+    ax1.set_ylabel('Taxa de Dose (µSv/h)')
+    ax1.set_title('Ra-226: Maior concentração = Maior dose?')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Ra-228 vs Dose
+    scatter2 = ax2.scatter(df_analysis['Resultado_ra228'], 
+                          df_analysis['Taxa de Dose Máxima (µSv/h)'],
+                          alpha=0.6, c='red', s=50)
+    ax2.axhline(y=5.0, color='red', linestyle='--', linewidth=2, label='Limite 5 µSv/h')
+    ax2.set_xlabel('Concentração de Ra-228 (Bq/g)')
+    ax2.set_ylabel('Taxa de Dose (µSv/h)')
+    ax2.set_title('Ra-228: Maior concentração = Maior dose?')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    
+    st.pyplot(fig)
 
 else:
-    st.warning("⚠️ Não há dados suficientes para análise com os filtros atuais.")
+    st.warning("Não há dados para análise com os critérios selecionados.")
 
-# Download dos dados filtrados
-st.header("📥 Download dos Dados")
+# DOWNLOAD SIMPLIFICADO
+st.header("📥 Baixar Dados da Análise")
 
-if len(filtered_df) > 0:
-    csv = filtered_df.to_csv(index=False)
+if len(df_analysis) > 0:
+    csv = df_analysis[['Taxa de Dose Máxima (µSv/h)', 'Resultado_ra226', 'Resultado_ra228']].to_csv(index=False)
     st.download_button(
-        label="Baixar dados filtrados como CSV",
+        label="📄 Baixar planilha com os dados analisados",
         data=csv,
-        file_name="dados_radiometricos_filtrados.csv",
+        file_name="analise_limite_5usvh.csv",
         mime="text/csv"
     )
-else:
-    st.info("Não há dados para download com os filtros atuais.")
 
-# Informações adicionais
-st.sidebar.header("ℹ️ Sobre a Análise")
-st.sidebar.info("""
-Esta análise foca na relação entre concentrações de Ra-226/Ra-228 
-e taxas de dose, com ênfase no limite operacional de 5 µSv/h.
-
-**Parâmetros padrão:**
-- Concentração máxima: 8 Bq/g
-- Taxa de dose máxima: 5 µSv/h
-
-**Colunas utilizadas:**
-- Resultado_ra226: Concentração de Ra-226
-- Resultado_ra228: Concentração de Ra-228  
-- Taxa de Dose Máxima (µSv/h): Taxa de dose medida
+# RODAPÉ COM EXPLICAÇÕES
+st.markdown("---")
+st.markdown("""
+**💡 Dicas para entender melhor:**
+- **Percentis** mostram "até que valor" vai a maioria das amostras
+- **P95** responde: "95% das amostras têm dose menor que quanto?"
+- **Limite adequado** = P95 bem abaixo de 5.0 µSv/h + alta % dentro do limite
 """)
