@@ -309,7 +309,7 @@ if pagina_selecionada == "📊 Análise Principal":
         """)
 
     # ANÁLISE SIMPLIFICADA - O QUE OS NÚMEROS SIGNIFICAM
-    st.header("O QUE OS NÚMEROS SIGNIFICAM PARA VOCÊ?")
+    st.header("Análise da variável qualitativa continua Taxa de Dose Máxima (µSv/h)")
 
     if total_amostras > 0:
         # Cálculos importantes
@@ -512,7 +512,7 @@ if pagina_selecionada == "📊 Análise Principal":
 
 # PÁGINA DE ESTUDO DETALHADO (mantida igual)
 else:
-    st.title("🔬 Estudo Detalhado - Metodologia e Parâmetros")
+    st.title("Estudo Detalhado - Metodologia e Parâmetros")
     
     st.markdown("""
     ## 📋 Metodologia Completa da Análise
@@ -551,7 +551,7 @@ else:
         """)
     
     with tab2:
-        st.header("📊 Metodologia Estatística")
+        st.header("Metodologia Estatística")
         
         col1, col2 = st.columns(2)
         
@@ -635,9 +635,9 @@ else:
         """)
     
     with tab4:
-        st.header("📈 Análises Realizadas")
+        st.header("Análises Realizadas")
         
-        st.subheader("🔍 Tipos de Análise")
+        st.subheader("Tipos de Análise")
         
         analysis_types = {
             "📊 Análise de Distribuição": "Histogramas e estatísticas descritivas das taxas de dose",
@@ -680,8 +680,7 @@ else:
         st.markdown("""
         ### **Normas e Diretrizes**
         - CNEN-NN-3.01: Diretrizes Básicas de Radioproteção
-        - Normas Internacionais: IAEA Safety Standards
-        - Boas Práticas: Guidelines internacionais para monitoramento
+        
         """)
     
     with col2:
@@ -704,6 +703,6 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.markdown("""
 **Desenvolvido por**  
-*Equipe de Radioproteção - GLP*  
+*Equipe de Radioproteção e SMS*  
 *Análise Estatística para Validação de Limites Operacionais*
 """)
