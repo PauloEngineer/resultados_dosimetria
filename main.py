@@ -72,6 +72,35 @@ def calcular_estatisticas_radionuclideos(df):
     
     return stats_dict
 
+# Função para calcular estatística descritiva da Taxa de Dose Máxima
+def calcular_estatisticas_dose(df):
+    dose_data = df['Taxa de Dose Máxima (µSv/h)'].dropna()
+    
+    if len(dose_data) == 0:
+        return None
+    
+    estatisticas = {
+        'count': len(dose_data),
+        'mean': dose_data.mean(),
+        'std': dose_data.std(),
+        'min': dose_data.min(),
+        '25%': dose_data.quantile(0.25),
+        '50%': dose_data.quantile(0.50),  # mediana
+        '75%': dose_data.quantile(0.75),
+        'max': dose_data.max(),
+        'range': dose_data.max() - dose_data.min(),
+        'cv': (dose_data.std() / dose_data.mean()) * 100 if dose_data.mean() != 0 else 0,  # coeficiente de variação
+        'skewness': dose_data.skew(),
+        'kurtosis': dose_data.kurtosis()
+    }
+    
+    # Percentis adicionais
+    percentis = [90, 95, 99]
+    for p in percentis:
+        estatisticas[f'P{p}'] = dose_data.quantile(p/100)
+    
+    return estatisticas
+
 # PÁGINA PRINCIPAL
 if pagina_selecionada == "📊 Análise Principal":
     
@@ -104,6 +133,7 @@ if pagina_selecionada == "📊 Análise Principal":
 
     # Calcular estatísticas para o dataframe em análise
     stats_radionuclideos = calcular_estatisticas_radionuclideos(df_analysis)
+    stats_dose = calcular_estatisticas_dose(df_analysis)
 
     # Layout principal - RESUMO EXECUTIVO SIMPLES
     st.header("📋 VISÃO GERAL DOS RESULTADOS")
@@ -128,6 +158,122 @@ if pagina_selecionada == "📊 Análise Principal":
     with col4:
         max_dose = df_analysis['Taxa de Dose Máxima (µSv/h)'].max() if total_amostras > 0 else 0
         st.metric("Maior Dose Encontrada", f"{max_dose:.2f} µSv/h")
+
+    # NOVA SEÇÃO: ESTATÍSTICA DESCRITIVA DA TAXA DE DOSE MÁXIMA (COM CHECKBOX)
+    if st.checkbox("📊 Exibir Estatística Descritiva - Taxa de Dose Máxima (µSv/h)"):
+        st.header("📊 Estatística Descritiva - Taxa de Dose Máxima (µSv/h)")
+        
+        if stats_dose:
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.subheader("Medidas de Tendência Central")
+                st.metric("Média", f"{stats_dose['mean']:.4f} µSv/h")
+                st.metric("Mediana (P50)", f"{stats_dose['50%']:.4f} µSv/h")
+                st.metric("Moda", f"{df_analysis['Taxa de Dose Máxima (µSv/h)'].mode().iloc[0] if not df_analysis['Taxa de Dose Máxima (µSv/h)'].mode().empty else 'N/A'} µSv/h")
+            
+            with col2:
+                st.subheader("Medidas de Dispersão")
+                st.metric("Desvio Padrão", f"{stats_dose['std']:.4f} µSv/h")
+                st.metric("Amplitude", f"{stats_dose['range']:.4f} µSv/h")
+                st.metric("Coef. Variação", f"{stats_dose['cv']:.2f}%")
+            
+            with col3:
+                st.subheader("Valores Extremos")
+                st.metric("Mínimo", f"{stats_dose['min']:.4f} µSv/h")
+                st.metric("Máximo", f"{stats_dose['max']:.4f} µSv/h")
+                st.metric("Amplitude Interquartil", f"{stats_dose['75%'] - stats_dose['25%']:.4f} µSv/h")
+            
+            # Quartis e Percentis
+            st.subheader("Quartis e Percentis")
+            col1, col2, col3, col4, col5 = st.columns(5)
+            
+            with col1:
+                st.metric("Q1 (25%)", f"{stats_dose['25%']:.4f} µSv/h")
+            with col2:
+                st.metric("Q2 (50%)", f"{stats_dose['50%']:.4f} µSv/h")
+            with col3:
+                st.metric("Q3 (75%)", f"{stats_dose['75%']:.4f} µSv/h")
+            with col4:
+                st.metric("P90", f"{stats_dose['P90']:.4f} µSv/h")
+            with col5:
+                st.metric("P95", f"{stats_dose['P95']:.4f} µSv/h")
+            
+            # Medidas de Forma
+            st.subheader("Medidas de Forma da Distribuição")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("Assimetria (Skewness)", f"{stats_dose['skewness']:.4f}")
+                if stats_dose['skewness'] > 0:
+                    st.info("Distribuição assimétrica positiva (viés à direita)")
+                elif stats_dose['skewness'] < 0:
+                    st.info("Distribuição assimétrica negativa (viés à esquerda)")
+                else:
+                    st.info("Distribuição simétrica")
+            
+            with col2:
+                st.metric("Curtose (Kurtosis)", f"{stats_dose['kurtosis']:.4f}")
+                if stats_dose['kurtosis'] > 0:
+                    st.info("Distribuição leptocúrtica (picos mais altos, caudas mais pesadas)")
+                elif stats_dose['kurtosis'] < 0:
+                    st.info("Distribuição platicúrtica (picos mais baixos, caudas mais leves)")
+                else:
+                    st.info("Distribuição mesocúrtica (similar à normal)")
+            
+            # Tabela resumo completa
+            st.subheader("Tabela Resumo Completa")
+            resumo_data = {
+                'Estatística': [
+                    'Número de amostras', 'Média', 'Desvio Padrão', 'Mínimo', 
+                    'Primeiro Quartil (Q1)', 'Mediana (Q2)', 'Terceiro Quartil (Q3)', 
+                    'Máximo', 'Amplitude', 'Amplitude Interquartil (IQR)',
+                    'Coeficiente de Variação', 'P90', 'P95', 'P99',
+                    'Assimetria (Skewness)', 'Curtose (Kurtosis)'
+                ],
+                'Valor': [
+                    stats_dose['count'],
+                    f"{stats_dose['mean']:.4f}",
+                    f"{stats_dose['std']:.4f}",
+                    f"{stats_dose['min']:.4f}",
+                    f"{stats_dose['25%']:.4f}",
+                    f"{stats_dose['50%']:.4f}",
+                    f"{stats_dose['75%']:.4f}",
+                    f"{stats_dose['max']:.4f}",
+                    f"{stats_dose['range']:.4f}",
+                    f"{stats_dose['75%'] - stats_dose['25%']:.4f}",
+                    f"{stats_dose['cv']:.2f}%",
+                    f"{stats_dose['P90']:.4f}",
+                    f"{stats_dose['P95']:.4f}",
+                    f"{stats_dose['P99']:.4f}",
+                    f"{stats_dose['skewness']:.4f}",
+                    f"{stats_dose['kurtosis']:.4f}"
+                ],
+                'Interpretação': [
+                    'Total de observações válidas',
+                    'Valor médio das taxas de dose',
+                    'Dispersão em torno da média',
+                    'Menor valor observado',
+                    '25% dos dados estão abaixo deste valor',
+                    '50% dos dados estão abaixo deste valor',
+                    '75% dos dados estão abaixo deste valor',
+                    'Maior valor observado',
+                    'Diferença entre máximo e mínimo',
+                    'Diferença entre Q3 e Q1 (dispersão central)',
+                    'Desvio padrão relativo à média',
+                    '90% dos dados estão abaixo deste valor',
+                    '95% dos dados estão abaixo deste valor',
+                    '99% dos dados estão abaixo deste valor',
+                    'Simetria da distribuição',
+                    '"Pico" da distribuição'
+                ]
+            }
+            
+            resumo_df = pd.DataFrame(resumo_data)
+            st.dataframe(resumo_df, use_container_width=True)
+            
+        else:
+            st.warning("Não há dados suficientes para calcular estatísticas descritivas.")
 
     # SEGUNDA LINHA: Estatísticas dos Radionuclídeos
     st.subheader("📊 Estatísticas por Radionuclídeo")
@@ -364,7 +510,7 @@ if pagina_selecionada == "📊 Análise Principal":
     - **Amostras por radionuclídeo** mostram a distribuição real das concentrações
     """)
 
-# PÁGINA DE ESTUDO DETALHADO
+# PÁGINA DE ESTUDO DETALHADO (mantida igual)
 else:
     st.title("🔬 Estudo Detalhado - Metodologia e Parâmetros")
     
@@ -416,6 +562,7 @@ else:
             - **Cálculo de médias** e valores máximos
             - **Percentuais** de amostras dentro/acima do limite
             - **Distribuição** por radionuclídeo
+            - **Estatísticas descritivas** completas da taxa de dose
             """)
             
             st.subheader("🎯 Critérios de Decisão")
@@ -497,7 +644,8 @@ else:
             "🎯 Análise de Percentis": "Cálculo de P90, P95, P99 para entender a maioria das amostras",
             "📈 Análise de Correlação": "Relação entre concentração de radionuclídeos e taxa de dose",
             "⚠️ Análise de Risco": "Classificação em zonas de risco (verde, amarelo, vermelho)",
-            "📋 Análise por Radionuclídeo": "Estatísticas separadas para Ra-226 e Ra-228"
+            "📋 Análise por Radionuclídeo": "Estatísticas separadas para Ra-226 e Ra-228",
+            "📊 Estatística Descritiva": "Análise completa das medidas de tendência central, dispersão e forma da distribuição"
         }
         
         for analysis, description in analysis_types.items():
@@ -556,6 +704,6 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.markdown("""
 **Desenvolvido por**  
-*Equipe de SMS e NORM*  
+*Equipe de Radioproteção - GLP*  
 *Análise Estatística para Validação de Limites Operacionais*
 """)
